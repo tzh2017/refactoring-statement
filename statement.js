@@ -1,43 +1,47 @@
-function statement(invoice, plays) {
-  let totalAmount = 0;
-  let volumeCredits = 0;
-  let result = `Statement for ${invoice.customer}\n`;
-  const format = new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-  }).format;
-  for (let perf of invoice.performances) {
-    const play = plays[perf.playID];
-    let thisAmount = 0;
-    switch (play.type) {
-    case 'tragedy':
-      thisAmount = 40000;
-      if (perf.audience > 30) {
-        thisAmount += 1000 * (perf.audience - 30);
-      }
-      break;
-    case 'comedy':
-      thisAmount = 30000;
-      if (perf.audience > 20) {
-        thisAmount += 10000 + 500 * (perf.audience - 20);
-      }
-      thisAmount += 300 * perf.audience;
-      break;
-    default:
-      throw new Error(`unknown type: ${play.type}`);
+const CalculatorFactory = require('./CalculatorFactory')
+
+function getTotalAmount(invoice, plays) {
+    let totalAmount = 0;
+    for (let perf of invoice.performances) {
+        const play = plays[perf.playID];
+        totalAmount += CalculatorFactory.create(play.type).getAmount(perf);
     }
-    // add volume credits
-    volumeCredits += Math.max(perf.audience - 30, 0);
-    // add extra credit for every ten comedy attendees
-    if ('comedy' === play.type) volumeCredits += Math.floor(perf.audience / 5);
-    // print line for this order
-    result += `  ${play.name}: ${format(thisAmount / 100)} (${ perf.audience } seats)\n`;
-    totalAmount += thisAmount;
-  }
-  result += `Amount owed is ${format(totalAmount / 100)}\n`;
-  result += `You earned ${volumeCredits} credits\n`;
-  return result;
+    return totalAmount;
+}
+
+function getVolumeCredits(invoice, plays) {
+    let volumeCredits = 0;
+    for (let perf of invoice.performances) {
+        const play = plays[perf.playID];
+        volumeCredits += CalculatorFactory.create(play.type).getVolumeCredits(perf);
+    }
+    return volumeCredits;
+}
+
+function formatAmount(amount) {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 2,
+    }).format(amount / 100);
+}
+
+function getDetails(invoice, plays) {
+    let details = '';
+    for (let perf of invoice.performances) {
+        const play = plays[perf.playID];
+        let thisAmount = CalculatorFactory.create(play.type).getAmount(perf);
+        details += `  ${play.name}: ${formatAmount(thisAmount)} (${perf.audience} seats)\n`;
+    }
+    return details;
+}
+
+function statement(invoice, plays) {
+    let result = `Statement for ${invoice.customer}\n`;
+    result += getDetails(invoice, plays);
+    result += `Amount owed is ${formatAmount(getTotalAmount(invoice, plays))}\n`;
+    result += `You earned ${(getVolumeCredits(invoice, plays))} credits\n`;
+    return result;
 }
 
 module.exports = statement;
